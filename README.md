@@ -54,8 +54,8 @@ SELECT g.name genre, COUNT(uts.invoice_line_id) tracks_sold, CAST(COUNT(uts.invo
 FROM usa_tracks_sold uts
 INNER JOIN track t on t.track_id = uts.track_id
 INNER JOIN genre g on g.genre_id = t.genre_id
-GROUP BY 1
-ORDER BY 2 DESC
+GROUP BY g.name
+ORDER BY tracks_sold DESC
 LIMIT 10;
 '''
 
@@ -87,5 +87,56 @@ run_query(popular_usa_genre).plot.bar('genre', 'percentage_sold', rot=25) #rot i
 ```
 ![image](https://user-images.githubusercontent.com/57373723/68715033-f17bc180-0555-11ea-9fde-1be083182c89.png)
 
-It is very noticeable that the most popular genre in the USA is easily Rock as it represents more than half of the tracks sold. Thus we may want to focus on connecting with record labels who focus on Rock artists.
+It is very noticeable that the most popular genre in the USA is easily Rock as it represents more than half of the tracks sold (53.37%). Thus we may want to focus on connecting with record labels who focus on Rock artists.
 
+# Analyzing Employee Sales Performance
+Each customer for the Chinook store gets assigned to a sales support agent within the company when they first make a purchase. We've been tasked by upper management to check the purchases connected to each service agent to see if anyone is underperfoming/overperforming.
+```python
+
+# Creating a subquery to total the value of purchases per customer as they keep the same sales rep for each purchase
+
+employee_sales_performance = '''
+WITH customer_support_rep_sales AS
+    (
+     SELECT i.customer_id, c.support_rep_id, SUM(i.total) total
+     FROM invoice i
+     INNER JOIN customer c ON i.customer_id = c.customer_id
+     GROUP BY i.customer_id, c.support_rep_id
+    )
+
+SELECT e.first_name || " " || e.last_name employee, SUM(csrs.total) total_sales
+FROM customer_support_rep_sales csrs
+INNER JOIN employee e ON e.employee_id = csrs.support_rep_id
+GROUP BY employee;
+'''
+
+print(run_query(employee_sales_performance))
+run_query(employee_sales_performance).plot.barh('employee', 'total_sales')
+```
+||employee|total_sales|
+|---|-----|-----------|
+|0|Jane Peacock|1731.51|
+|1|Margaret Park|1584.00|
+|2|Steve Johnson|1393.92|
+
+![image](https://user-images.githubusercontent.com/57373723/68718320-b7aeb900-055d-11ea-8953-98a590bf8a8e.png)
+
+From the looks of it, it does seem like Jane is outperforming Steve by almost 25%. However, we overlooked one important detail, when were they hired. This can easily be added by revising the main query as hire_date is under the employee table. Thus we can revise the following:
+```python
+SELECT e.first_name || " " || e.last_name employee, SUM(csrs.total) total_sales
+```
+to 
+```python
+# added the hire date column at the end
+SELECT e.first_name || " " || e.last_name employee, SUM(csrs.total) total_sales, e.hire_date
+```
+
+||employee|total_sales|hire_date|
+|---|-----|-----------|---------|
+|0|Jane Peacock|1731.51|2017-04-01 00:00:00|
+|1|Margaret Park|1584.00|2017-05-03 00:00:00|
+|2|Steve Johnson|1393.92|2017-10-17 00:00:00|
+
+Now we can see that Jane was hired the earliest of the three and thus had a headstart in accumulating sales. Based on the current date/month, we could create some form of an average to see who is truly achieving the most/least.
+
+# Analyzing Sales by Country
